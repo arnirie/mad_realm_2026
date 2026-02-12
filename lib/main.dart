@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:gap/gap.dart';
+import 'package:intl/intl.dart';
 import 'package:realm/realm.dart';
 import 'package:realm_2026/car.dart';
 import 'package:realm_2026/note.dart';
@@ -39,6 +41,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   void loadNotes() {
     results = realm.all<Note>();
+    setState(() {});
   }
 
   @override
@@ -48,29 +51,67 @@ class _NotesScreenState extends State<NotesScreen> {
       body: ListView.builder(
         itemBuilder: (_, index) {
           var note = results[index];
-          return ListTile(title: Text(note.title));
+          return Dismissible(
+            key: UniqueKey(),
+            onDismissed: (direction) => deleteNote(note),
+            child: Card(
+              child: ListTile(
+                onTap: () {
+                  showNoteDialog('update', note);
+                },
+                title: Text(note.title),
+                trailing: Text(DateFormat.yMd().format(note.date!)),
+              ),
+            ),
+          );
         },
         itemCount: results.length,
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: showAddDialog,
+        onPressed: () => showNoteDialog('add', null),
         child: Icon(Icons.add),
       ),
     );
   }
 
-  void showAddDialog() {
+  void showNoteDialog(String operation, Note? n) {
+    titleCtrl.text = n?.title ?? '';
+    contentCtrl.text = n?.content ?? '';
+
     showDialog(
       context: context,
       builder: (_) {
         return AlertDialog(
-          actions: [TextButton(onPressed: addNote, child: Text('ADD'))],
-          title: Text('Add Note'),
+          actions: [
+            ElevatedButton(
+              onPressed: () => operation == 'add' ? addNote() : updateNote(n!),
+              child: Text(operation == 'add' ? 'ADD' : 'UPDATE'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+          ],
+          title: Text(operation == 'add' ? 'Add Note' : 'Update Note'),
           content: Column(
             mainAxisSize: .min,
             children: [
-              TextField(controller: titleCtrl),
-              TextField(controller: contentCtrl),
+              TextField(
+                controller: titleCtrl,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  label: Text('Title'),
+                ),
+              ),
+              Gap(12),
+              TextField(
+                controller: contentCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  label: Text('Note'),
+                ),
+              ),
             ],
           ),
         );
@@ -84,8 +125,29 @@ class _NotesScreenState extends State<NotesScreen> {
       realm.add(note);
     });
     Navigator.pop(context);
+    loadNotes();
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Note added')));
+  }
+
+  void deleteNote(Note n) {
+    realm.write(() {
+      realm.delete(n);
+    });
+    loadNotes();
+  }
+
+  void updateNote(Note n) {
+    realm.write(() {
+      n.title = titleCtrl.text;
+      n.content = contentCtrl.text;
+      realm.add(n, update: true);
+    });
+    Navigator.pop(context);
+    loadNotes();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Note updated')));
   }
 }
